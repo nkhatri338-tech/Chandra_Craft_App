@@ -8,7 +8,6 @@ SHEET_URL = "https://google.com"
 
 # गूगल शीट से कनेक्ट करने का सबसे आसान तरीका
 def get_sheet(sheet_name):
-    # स्ट्रीमलिट क्लाउड पर पब्लिक यूआरएल के जरिए सीधा कनेक्शन
     gc = gspread.public()
     sh = gc.open_by_url(SHEET_URL)
     return sh.worksheet(sheet_name)
@@ -31,7 +30,7 @@ try:
     df_stock = pd.DataFrame(ws_stock.get_all_records())
     df_in = pd.DataFrame(ws_in.get_all_records())
     df_out = pd.DataFrame(ws_out.get_all_records())
-except:
+except Exception as e:
     # अगर पहली बार शीट पूरी खाली है तो कॉलम सेट करना
     df_stock = pd.DataFrame(columns=["Item Code", "Item Name", "Current Stock", "Price"])
     df_in = pd.DataFrame(columns=["Date", "Challan No", "Item Code", "Item Name", "Quantity"])
@@ -59,13 +58,12 @@ elif menu == "📥 माल आया (Incoming Stock)":
         submitted_in = st.form_submit_button("आवक एंट्री सेव करें")
         
         if submitted_in and challan_no and item_code and item_name:
-            # सीधे गूगल शीट में नई लाइन जोड़ना
+            # यहाँ स्पेलिंग की गलती पूरी तरह ठीक कर दी गई है (ws_in)
             ws_in.append_row([in_date.strftime('%Y-%m-%d'), challan_no, item_code, item_name, qty])
             
             # स्टॉक अपडेट करना
             item_code_str = str(item_code)
             if not df_stock.empty and item_code_str in df_stock["Item Code"].astype(str).values:
-                # अगर पहले से है तो गूगल शीट में अपडेट करें (सरल तरीका: पुरानी लिस्ट में जोड़कर फिर से लिखना)
                 df_stock.loc[df_stock["Item Code"].astype(str) == item_code_str, "Current Stock"] += qty
                 df_stock.loc[df_stock["Item Code"].astype(str) == item_code_str, "Price"] = price
                 ws_stock.clear()
