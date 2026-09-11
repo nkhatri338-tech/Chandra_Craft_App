@@ -3,14 +3,11 @@ import pandas as pd
 from datetime import datetime
 import io
 
-# आपकी असली गूगल शीट का सीधा और पक्का यूआरएल जो एडिटर मोड में खुला है
-# हम पब्लिश वाले लिंक को पूरी तरह हटा रहे हैं ताकि पुराना कैशे एरर न आए
-BASE_URL = "https://google.com"
-
-# सीधे शीट के नाम से डेटा लोड करना
-STOCK_URL = f"{BASE_URL}&sheet=inventory_stock"
-INCOMING_URL = f"{BASE_URL}&sheet=incoming_records"
-OUTGOING_URL = f"{BASE_URL}&sheet=outgoing_records"
+# आपकी गूगल शीट का सबसे सीधा और आसान एक्सपोर्ट लिंक
+# इसमें कोई पब्लिश या कैशे का झंझट नहीं है
+STOCK_URL = "https://google.com"
+INCOMING_URL = "https://google.com"
+OUTGOING_URL = "https://google.com"
 
 # सुंदर फॉन्ट और कलर में आपकी फैक्ट्री का नाम
 st.markdown("<h1 style='font-family: Impact, Charcoal, sans-serif; letter-spacing: 2px; color: #1C83E1;'>🏭 CHANDRA CRAFT HOUSE</h1>", unsafe_allow_html=True)
@@ -23,30 +20,25 @@ menu = st.sidebar.selectbox("मेनू चुनें", [
     "🔍 PARTY का इतिहास (Party Ledger)"
 ])
 
-# लाइव डेटा लोड करने का सबसे आसान और सुरक्षित तरीका
-def load_data(url, default_cols):
+# लाइव डेटा लोड करने का फुल-प्रूफ तरीका
+def load_data(url):
     try:
-        # सीधे लाइव शीट से ताजा डेटा उठाना
         df = pd.read_csv(url)
-        if df.empty or len(df.columns) == 0:
-            return pd.DataFrame(columns=default_cols)
-        
-        # कॉलम के नामों को साफ करना
-        df.columns = df.columns.str.strip()
+        if not df.empty:
+            df.columns = df.columns.str.strip()
         return df
     except Exception as e:
-        return pd.DataFrame(columns=default_cols)
+        return pd.DataFrame()
 
 # डेटा लोड करना
-df_stock = load_data(STOCK_URL, ["Item Code", "Item Name", "Current Stock", "Price"])
-df_in = load_data(INCOMING_URL, ["Date", "Challan No", "Item Code", "Item Name", "Quantity"])
-df_out = load_data(OUTGOING_URL, ["Date", "Party Name", "Item Code", "Item Name", "Quantity", "Rate", "Total Amount"])
+df_stock = load_data(STOCK_URL)
+df_in = load_data(INCOMING_URL)
+df_out = load_data(OUTGOING_URL)
 
 # --- 1. वर्तमान स्टॉक ---
 if menu == "📊 वर्तमान स्टॉक (Current Stock)":
     st.subheader("📋 फैक्ट्री में उपलब्ध वर्तमान स्टॉक")
-    if not df_stock.empty and "Item Code" in df_stock.columns:
-        # डेटा को साफ सुथरा दिखाना
+    if not df_stock.empty:
         st.dataframe(df_stock, use_container_width=True)
     else:
         st.info("स्टॉक लोड हो रहा है... कृपया अपनी मोबाइल स्क्रीन को एक बार रिफ्रेश (Reload) करें।")
@@ -66,16 +58,16 @@ elif menu == "📥 माल आया (Incoming Stock)":
         
         if submitted_in and challan_no and item_code and item_name:
             st.success(f"चालान नं. {challan_no} के तहत '{item_name}' एंट्री प्रोसेस हो गई है!")
-            st.info("सुरक्षा के लिए लाइव ऐप से शीट में लिखना ब्लॉक रहता है। आप अपनी गूगल शीट की 'incoming_records' टैब में यह एंट्री डायरेक्ट लिख दें, ऐप में तुरंत अपडेट दिखेगा।")
+            st.info("आप अपनी गूगल शीट की 'incoming_records' टैब में यह एंट्री डायरेक्ट लिख दें, ऐप में तुरंत अपडेट दिखेगा।")
 
 # --- 3. माल बेचा/गया (Outgoing) ---
 elif menu == "📤 माल बेचा/गया (Outgoing/Sale)":
     st.subheader("📤 माल की निकासी / बिक्री (Outgoing) दर्ज करें")
-    if not df_stock.empty and "Item Code" in df_stock.columns:
+    if not df_stock.empty and len(df_stock.columns) > 1:
         with st.form("outgoing_form", clear_on_submit=True):
             out_date = st.date_input("तारीख", datetime.now())
             party_name = st.text_input("पार्टी का नाम (Party Name)").strip()
-            selected_code = st.selectbox("प्रोडक्ट कोड चुनें", df_stock["Item Code"].unique())
+            selected_code = st.selectbox("प्रोडक्ट कोड चुनें", df_stock.iloc[:, 0].unique())
             out_qty = st.number_input("बेचने वाली मात्रा (Quantity)", min_value=1, step=1)
             custom_rate = st.number_input("रेट (Rate)", min_value=0.0, step=1.0)
             
@@ -88,11 +80,11 @@ elif menu == "📤 माल बेचा/गया (Outgoing/Sale)":
 # --- 4. पार्टी का इतिहास (Ledger) ---
 elif menu == "🔍 PARTY का इतिहास (Party Ledger)":
     st.subheader("🔍 पार्टी वाइज सेल्स हिस्ट्री (Ledger)")
-    if not df_out.empty and "Party Name" in df_out.columns:
-        search_party = st.selectbox("किस पार्टी का हिसाब देखना है?", ["-- चुनें --"] + list(df_out["Party Name"].dropna().unique()))
+    if not df_out.empty and len(df_out.columns) > 1:
+        search_party = st.selectbox("किस पार्टी का हिसाब देखना है?", ["-- चुनें --"] + list(df_out.iloc[:, 1].dropna().unique()))
         
         if search_party != "-- चुनें --":
-            party_df = df_out[df_out["Party Name"] == search_party]
+            party_df = df_out[df_out.iloc[:, 1] == search_party]
             st.dataframe(party_df, use_container_width=True)
             
             # एक्सेल बिल डाउनलोड का फीचर
