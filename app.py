@@ -1,9 +1,9 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+import io
 
-# आपकी गूगल शीट का सीधा और पक्का लाइव CSV लिंक
-# हमने इसे सीधे CSV रीडर मोड में बदला है ताकि बिना किसी टोकन या पासवर्ड के डेटा तुरंत लोड हो सके
+# आपकी गूगल शीट का नया पब्लिश यूआरएल (बिल्कुल सही सेट किया हुआ)
 STOCK_URL = "https://google.com"
 INCOMING_URL = "https://google.com"
 OUTGOING_URL = "https://google.com"
@@ -19,13 +19,14 @@ menu = st.sidebar.selectbox("मेनू चुनें", [
     "🔍 पार्टी का इतिहास (Party Ledger)"
 ])
 
-# लाइव डेटा लोड करने का सबसे आसान और फुल-प्रूफ तरीका
+# लाइव डेटा लोड करने का फुल-प्रूफ तरीका
 def load_data(url, default_cols):
     try:
-        # यह सीधे गूगल शीट को ऑनलाइन बिना किसी पासवर्ड रुकावट के पढ़ लेता है
         df = pd.read_csv(url)
         if df.empty or len(df.columns) == 0:
             return pd.DataFrame(columns=default_cols)
+        # कॉलम के नाम के आगे-पीछे के स्पेस हटाना ताकि कोई गड़बड़ न हो
+        df.columns = df.columns.str.strip()
         return df
     except Exception as e:
         return pd.DataFrame(columns=default_cols)
@@ -57,9 +58,8 @@ elif menu == "📥 माल आया (Incoming Stock)":
         submitted_in = st.form_submit_button("आवक एंट्री सेव करें")
         
         if submitted_in and challan_no and item_code and item_name:
-            # नया डेटा स्थानीय रूप से जोड़ना (दिखाने के लिए)
             st.success(f"चालान नं. {challan_no} के तहत '{item_name}' एंट्री प्रोसेस हो गई है!")
-            st.info("डेटा सीधे ऑनलाइन सुरक्षित करने के लिए अपनी गूगल शीट में मैन्युअल या फॉर्म के जरिए भी अपडेट रख सकते हैं।")
+            st.info("नोट: सिर्फ़ पब्लिश लिंक होने के कारण ऐप से सीधे शीट में राइट ब्लॉक रहता है। डेटा सुरक्षित रखने के लिए अपनी गूगल शीट में ये एंट्री डायरेक्ट भर दें, ऐप में तुरंत अपडेट हो जाएगी।")
 
 # --- 3. माल बेचा/गया (Outgoing) ---
 elif menu == "📤 माल बेचा/गया (Outgoing/Sale)":
@@ -74,17 +74,33 @@ elif menu == "📤 माल बेचा/गया (Outgoing/Sale)":
             
             submitted_out = st.form_submit_button("बिक्री पक्की करें")
             if submitted_out and party_name:
-                st.success("बिक्री की एंट्री दर्ज कर ली गई है!")
+                st.success("बिक्री की एंट्री दर्ज कर ली गई है! इसे अपनी गूगल शीट के 'outgoing_records' में अपडेट कर दें।")
     else:
         st.info("स्टॉक में कोई माल नहीं है।")
 
 # --- 4. पार्टी का इतिहास (Ledger) ---
 elif menu == "🔍 पार्टी का इतिहास (Party Ledger)":
     st.subheader("🔍 पार्टी वाइज सेल्स हिस्ट्री (Ledger)")
-    if not df_out.empty and len(df_out.columns) > 1:
-        search_party = st.selectbox("किस पार्टी का हिसाब देखना है?", ["-- चुनें --"] + list(df_out["Party Name"].unique()))
+    if not df_out.empty and "Party Name" in df_out.columns:
+        search_party = st.selectbox("किस पार्टी का हिसाब देखना है?", ["-- चुनें --"] + list(df_out["Party Name"].dropna().unique()))
+        
         if search_party != "-- चुनें --":
             party_df = df_out[df_out["Party Name"] == search_party]
             st.dataframe(party_df, use_container_width=True)
+            
+            # --- 🧾 एक्सेल बिल डाउनलोड फीचर ---
+            # डेटा को एक्सेल फाइल (मेमोरी) में बदलना
+            buffer = io.BytesIO()
+            with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                party_df.to_excel(writer, index=False, sheet_name='Invoice')
+            buffer.seek(0)
+            
+            # सुंदर डाउनलोड बटन
+            st.download_button(
+                label=f"📥 {search_party} का Excel बिल डाउनलोड करें",
+                data=buffer,
+                file_name=f"Chandra_Craft_Bill_{search_party}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
     else:
         st.info("अभी तक कोई बिक्री का डेटा ऑनलाइन दर्ज नहीं है।")
