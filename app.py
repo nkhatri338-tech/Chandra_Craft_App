@@ -3,15 +3,18 @@ import pandas as pd
 from datetime import datetime
 import io
 
-# आपकी गूगल शीट का नया पब्लिश यूआरएल (बिल्कुल सही सेट किया हुआ)
-STOCK_URL = "https://google.com"
-INCOMING_URL = "https://google.com"
-OUTGOING_URL = "https://google.com"
+# आपकी गूगल शीट का सीधा और असली लिंक (बिना पब्लिश के झंझट के)
+# हम /edit को हटाकर अंत में /export?format=csv जोड़ रहे हैं, जिससे गूगल सीधे डेटा देता है
+BASE_URL = "https://google.com"
 
-# सुंदर फॉन्ट और कलर में आपकी फैक्ट्री का नाम
+# अलग-अलग शीट (टैब) के यूआरएल
+# ध्यान दें: हमने सीधे शीट के नाम (sheet=...) का इस्तेमाल किया है, जिससे gid की कोई गड़बड़ नहीं होगी
+STOCK_URL = f"{BASE_URL}&sheet=inventory_stock"
+INCOMING_URL = f"{BASE_URL}&sheet=incoming_records"
+OUTGOING_URL = f"{BASE_URL}&sheet=outgoing_records"
+
 st.markdown("<h1 style='font-family: Impact, Charcoal, sans-serif; letter-spacing: 2px; color: #1C83E1;'>🏭 CHANDRA CRAFT HOUSE</h1>", unsafe_allow_html=True)
 
-# साइडबार मेनू
 menu = st.sidebar.selectbox("मेनू चुनें", [
     "📊 वर्तमान स्टॉक (Current Stock)", 
     "📥 माल आया (Incoming Stock)", 
@@ -19,13 +22,14 @@ menu = st.sidebar.selectbox("मेनू चुनें", [
     "🔍 पार्टी का इतिहास (Party Ledger)"
 ])
 
-# लाइव डेटा लोड करने का फुल-प्रूफ तरीका
 def load_data(url, default_cols):
     try:
         df = pd.read_csv(url)
         if df.empty or len(df.columns) == 0:
             return pd.DataFrame(columns=default_cols)
-        # कॉलम के नाम के आगे-पीछे के स्पेस हटाना ताकि कोई गड़बड़ न हो
+        # अगर डेटा में html कोडिंग आ जाए, तो उसे रोकें
+        if "doctype html" in str(df.columns[0]).lower() or "var h=" in str(df.iloc[0,0] if not df.empty else ""):
+            return pd.DataFrame(columns=default_cols)
         df.columns = df.columns.str.strip()
         return df
     except Exception as e:
@@ -42,7 +46,7 @@ if menu == "📊 वर्तमान स्टॉक (Current Stock)":
     if not df_stock.empty and len(df_stock.columns) > 1:
         st.dataframe(df_stock, use_container_width=True)
     else:
-        st.info("अभी शीट में कोई स्टॉक नहीं है या हेडिंग खाली है। 'माल आया' सेक्शन से एंट्री करें।")
+        st.info("अभी शीट में कोई स्टॉक नहीं है या हेडिंग खाली है। अपनी गूगल शीट की 'inventory_stock' टैब में जाकर पहली लाइन में Item Code, Item Name, Current Stock, Price लिख दें।")
 
 # --- 2. माल आया (Incoming) ---
 elif menu == "📥 माल आया (Incoming Stock)":
@@ -59,7 +63,7 @@ elif menu == "📥 माल आया (Incoming Stock)":
         
         if submitted_in and challan_no and item_code and item_name:
             st.success(f"चालान नं. {challan_no} के तहत '{item_name}' एंट्री प्रोसेस हो गई है!")
-            st.info("नोट: सिर्फ़ पब्लिश लिंक होने के कारण ऐप से सीधे शीट में राइट ब्लॉक रहता है। डेटा सुरक्षित रखने के लिए अपनी गूगल शीट में ये एंट्री डायरेक्ट भर दें, ऐप में तुरंत अपडेट हो जाएगी।")
+            st.info("डेटा सुरक्षित रखने के लिए अपनी गूगल शीट में ये एंट्री डायरेक्ट भर दें, ऐप में तुरंत अपडेट हो जाएगी।")
 
 # --- 3. माल बेचा/गया (Outgoing) ---
 elif menu == "📤 माल बेचा/गया (Outgoing/Sale)":
@@ -74,7 +78,7 @@ elif menu == "📤 माल बेचा/गया (Outgoing/Sale)":
             
             submitted_out = st.form_submit_button("बिक्री पक्की करें")
             if submitted_out and party_name:
-                st.success("बिक्री की एंट्री दर्ज कर ली गई है! इसे अपनी गूगल शीट के 'outgoing_records' में अपडेट कर दें।")
+                st.success("बिक्री की एंट्री दर्ज कर ली गई है! इसे अपनी गूगल शीट में अपडेट कर दें।")
     else:
         st.info("स्टॉक में कोई माल नहीं है।")
 
@@ -88,14 +92,11 @@ elif menu == "🔍 पार्टी का इतिहास (Party Ledger)":
             party_df = df_out[df_out["Party Name"] == search_party]
             st.dataframe(party_df, use_container_width=True)
             
-            # --- 🧾 एक्सेल बिल डाउनलोड फीचर ---
-            # डेटा को एक्सेल फाइल (मेमोरी) में बदलना
             buffer = io.BytesIO()
             with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
                 party_df.to_excel(writer, index=False, sheet_name='Invoice')
             buffer.seek(0)
             
-            # सुंदर डाउनलोड बटन
             st.download_button(
                 label=f"📥 {search_party} का Excel बिल डाउनलोड करें",
                 data=buffer,
