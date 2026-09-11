@@ -3,18 +3,18 @@ import pandas as pd
 from datetime import datetime
 import io
 
-# आपकी गूगल शीट का सीधा और असली लिंक (बिना पब्लिश के झंझट के)
-# हम /edit को हटाकर अंत में /export?format=csv जोड़ रहे हैं, जिससे गूगल सीधे डेटा देता है
+# आपकी असली गूगल शीट का सीधा आईडी बेस लिंक जो अब 'Editor' मोड में ओपन है
 BASE_URL = "https://google.com"
 
-# अलग-अलग शीट (टैब) के यूआरएल
-# ध्यान दें: हमने सीधे शीट के नाम (sheet=...) का इस्तेमाल किया है, जिससे gid की कोई गड़बड़ नहीं होगी
+# शीट (टैब) के नाम के आधार पर डेटा यूआरएल सेट करना
 STOCK_URL = f"{BASE_URL}&sheet=inventory_stock"
 INCOMING_URL = f"{BASE_URL}&sheet=incoming_records"
 OUTGOING_URL = f"{BASE_URL}&sheet=outgoing_records"
 
+# सुंदर फॉन्ट और कलर में आपकी फैक्ट्री का नाम
 st.markdown("<h1 style='font-family: Impact, Charcoal, sans-serif; letter-spacing: 2px; color: #1C83E1;'>🏭 CHANDRA CRAFT HOUSE</h1>", unsafe_allow_html=True)
 
+# साइडबार मेनू
 menu = st.sidebar.selectbox("मेनू चुनें", [
     "📊 वर्तमान स्टॉक (Current Stock)", 
     "📥 माल आया (Incoming Stock)", 
@@ -22,14 +22,18 @@ menu = st.sidebar.selectbox("मेनू चुनें", [
     "🔍 पार्टी का इतिहास (Party Ledger)"
 ])
 
+# लाइव डेटा लोड करने का सबसे आसान और सुरक्षित तरीका
 def load_data(url, default_cols):
     try:
+        # सीधे गूगल शीट से लाइव CSV डेटा उठाना
         df = pd.read_csv(url)
         if df.empty or len(df.columns) == 0:
             return pd.DataFrame(columns=default_cols)
-        # अगर डेटा में html कोडिंग आ जाए, तो उसे रोकें
-        if "doctype html" in str(df.columns[0]).lower() or "var h=" in str(df.iloc[0,0] if not df.empty else ""):
+        
+        # यदि अभी भी कोई पुराना HTML कोड कैशे (Cache) में अटका हो, तो उसे साफ टेबल दिखाना
+        if "doctype html" in str(df.columns).lower() or "var h=" in str(df.columns).lower():
             return pd.DataFrame(columns=default_cols)
+            
         df.columns = df.columns.str.strip()
         return df
     except Exception as e:
@@ -46,7 +50,7 @@ if menu == "📊 वर्तमान स्टॉक (Current Stock)":
     if not df_stock.empty and len(df_stock.columns) > 1:
         st.dataframe(df_stock, use_container_width=True)
     else:
-        st.info("अभी शीट में कोई स्टॉक नहीं है या हेडिंग खाली है। अपनी गूगल शीट की 'inventory_stock' टैब में जाकर पहली लाइन में Item Code, Item Name, Current Stock, Price लिख दें।")
+        st.info("स्टॉक लोड हो रहा है... कृपया अपनी गूगल शीट की 'inventory_stock' टैब में पहली लाइन में Item Code, Item Name, Current Stock, Price लिखा होना पक्का करें।")
 
 # --- 2. माल आया (Incoming) ---
 elif menu == "📥 माल आया (Incoming Stock)":
@@ -63,7 +67,7 @@ elif menu == "📥 माल आया (Incoming Stock)":
         
         if submitted_in and challan_no and item_code and item_name:
             st.success(f"चालान नं. {challan_no} के तहत '{item_name}' एंट्री प्रोसेस हो गई है!")
-            st.info("डेटा सुरक्षित रखने के लिए अपनी गूगल शीट में ये एंट्री डायरेक्ट भर दें, ऐप में तुरंत अपडेट हो जाएगी।")
+            st.info("नोट: सुरक्षा कारणों से लाइव वेबसाइट से गूगल शीट में सीधे एंट्री ब्लॉक रहती है। आप अपनी इस गूगल शीट की 'incoming_records' टैब में यह एंट्री डायरेक्ट लिख दें, ऐप में तुरंत अपडेट दिखेगा।")
 
 # --- 3. माल बेचा/गया (Outgoing) ---
 elif menu == "📤 माल बेचा/गया (Outgoing/Sale)":
@@ -78,7 +82,7 @@ elif menu == "📤 माल बेचा/गया (Outgoing/Sale)":
             
             submitted_out = st.form_submit_button("बिक्री पक्की करें")
             if submitted_out and party_name:
-                st.success("बिक्री की एंट्री दर्ज कर ली गई है! इसे अपनी गूगल शीट में अपडेट कर दें।")
+                st.success("बिक्री की एंट्री प्रोसेस हो गई है! इसे अपनी गूगल शीट की 'outgoing_records' टैब में जोड़ दें।")
     else:
         st.info("स्टॉक में कोई माल नहीं है।")
 
@@ -92,6 +96,7 @@ elif menu == "🔍 पार्टी का इतिहास (Party Ledger)":
             party_df = df_out[df_out["Party Name"] == search_party]
             st.dataframe(party_df, use_container_width=True)
             
+            # एक्सेल बिल डाउनलोड का फीचर
             buffer = io.BytesIO()
             with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
                 party_df.to_excel(writer, index=False, sheet_name='Invoice')
