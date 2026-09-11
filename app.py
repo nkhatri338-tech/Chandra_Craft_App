@@ -3,10 +3,11 @@ import pandas as pd
 from datetime import datetime
 import io
 
-# आपकी असली गूगल शीट का सीधा आईडी बेस लिंक जो अब 'Editor' मोड में ओपन है
+# आपकी असली गूगल शीट का सीधा और पक्का यूआरएल जो एडिटर मोड में खुला है
+# हम पब्लिश वाले लिंक को पूरी तरह हटा रहे हैं ताकि पुराना कैशे एरर न आए
 BASE_URL = "https://google.com"
 
-# शीट (टैब) के नाम के आधार पर डेटा यूआरएल सेट करना
+# सीधे शीट के नाम से डेटा लोड करना
 STOCK_URL = f"{BASE_URL}&sheet=inventory_stock"
 INCOMING_URL = f"{BASE_URL}&sheet=incoming_records"
 OUTGOING_URL = f"{BASE_URL}&sheet=outgoing_records"
@@ -19,21 +20,18 @@ menu = st.sidebar.selectbox("मेनू चुनें", [
     "📊 वर्तमान स्टॉक (Current Stock)", 
     "📥 माल आया (Incoming Stock)", 
     "📤 माल बेचा/गया (Outgoing/Sale)", 
-    "🔍 पार्टी का इतिहास (Party Ledger)"
+    "🔍 PARTY का इतिहास (Party Ledger)"
 ])
 
 # लाइव डेटा लोड करने का सबसे आसान और सुरक्षित तरीका
 def load_data(url, default_cols):
     try:
-        # सीधे गूगल शीट से लाइव CSV डेटा उठाना
+        # सीधे लाइव शीट से ताजा डेटा उठाना
         df = pd.read_csv(url)
         if df.empty or len(df.columns) == 0:
             return pd.DataFrame(columns=default_cols)
         
-        # यदि अभी भी कोई पुराना HTML कोड कैशे (Cache) में अटका हो, तो उसे साफ टेबल दिखाना
-        if "doctype html" in str(df.columns).lower() or "var h=" in str(df.columns).lower():
-            return pd.DataFrame(columns=default_cols)
-            
+        # कॉलम के नामों को साफ करना
         df.columns = df.columns.str.strip()
         return df
     except Exception as e:
@@ -47,10 +45,11 @@ df_out = load_data(OUTGOING_URL, ["Date", "Party Name", "Item Code", "Item Name"
 # --- 1. वर्तमान स्टॉक ---
 if menu == "📊 वर्तमान स्टॉक (Current Stock)":
     st.subheader("📋 फैक्ट्री में उपलब्ध वर्तमान स्टॉक")
-    if not df_stock.empty and len(df_stock.columns) > 1:
+    if not df_stock.empty and "Item Code" in df_stock.columns:
+        # डेटा को साफ सुथरा दिखाना
         st.dataframe(df_stock, use_container_width=True)
     else:
-        st.info("स्टॉक लोड हो रहा है... कृपया अपनी गूगल शीट की 'inventory_stock' टैब में पहली लाइन में Item Code, Item Name, Current Stock, Price लिखा होना पक्का करें।")
+        st.info("स्टॉक लोड हो रहा है... कृपया अपनी मोबाइल स्क्रीन को एक बार रिफ्रेश (Reload) करें।")
 
 # --- 2. माल आया (Incoming) ---
 elif menu == "📥 माल आया (Incoming Stock)":
@@ -67,12 +66,12 @@ elif menu == "📥 माल आया (Incoming Stock)":
         
         if submitted_in and challan_no and item_code and item_name:
             st.success(f"चालान नं. {challan_no} के तहत '{item_name}' एंट्री प्रोसेस हो गई है!")
-            st.info("नोट: सुरक्षा कारणों से लाइव वेबसाइट से गूगल शीट में सीधे एंट्री ब्लॉक रहती है। आप अपनी इस गूगल शीट की 'incoming_records' टैब में यह एंट्री डायरेक्ट लिख दें, ऐप में तुरंत अपडेट दिखेगा।")
+            st.info("सुरक्षा के लिए लाइव ऐप से शीट में लिखना ब्लॉक रहता है। आप अपनी गूगल शीट की 'incoming_records' टैब में यह एंट्री डायरेक्ट लिख दें, ऐप में तुरंत अपडेट दिखेगा।")
 
 # --- 3. माल बेचा/गया (Outgoing) ---
 elif menu == "📤 माल बेचा/गया (Outgoing/Sale)":
     st.subheader("📤 माल की निकासी / बिक्री (Outgoing) दर्ज करें")
-    if not df_stock.empty and len(df_stock.columns) > 1:
+    if not df_stock.empty and "Item Code" in df_stock.columns:
         with st.form("outgoing_form", clear_on_submit=True):
             out_date = st.date_input("तारीख", datetime.now())
             party_name = st.text_input("पार्टी का नाम (Party Name)").strip()
@@ -87,7 +86,7 @@ elif menu == "📤 माल बेचा/गया (Outgoing/Sale)":
         st.info("स्टॉक में कोई माल नहीं है।")
 
 # --- 4. पार्टी का इतिहास (Ledger) ---
-elif menu == "🔍 पार्टी का इतिहास (Party Ledger)":
+elif menu == "🔍 PARTY का इतिहास (Party Ledger)":
     st.subheader("🔍 पार्टी वाइज सेल्स हिस्ट्री (Ledger)")
     if not df_out.empty and "Party Name" in df_out.columns:
         search_party = st.selectbox("किस पार्टी का हिसाब देखना है?", ["-- चुनें --"] + list(df_out["Party Name"].dropna().unique()))
